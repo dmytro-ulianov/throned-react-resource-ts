@@ -9,6 +9,9 @@
 `@throned/react-resource-ts` has `@throned/resource-ts` in dependencies, so it
 will be installed anyway.
 
+Be aware that `useResource` hook uses AbortController so you may want to add a
+[polyfill](https://github.com/mo/abortcontroller-polyfill).
+
 ## Intro
 
 React Resource provides hooks and components for [Resource ADT](https://github.com/dmytro-ulianov/throned-resource-ts).
@@ -19,11 +22,12 @@ into Resource data type and render each possible state of resource (`Initial`, `
 
 ```tsx
 import * as React from 'react'
-import {useResource, getStateComponents} from '@throned/react-resource-ts'
+import {isLoading} from '@throned/resource-ts'
+import {getStateComponents, useResource} from '@throned/react-resource-ts'
 
 type Dog = {message: string}
 
-const fetchDog = (): Promise<Dog> => {
+const loadDog = async (): Promise<Dog> => {
   return fetch('https://dog.ceo/api/breeds/image/random').then(res => {
     if (!res.ok) {
       throw new Error(res.statusText)
@@ -32,21 +36,26 @@ const fetchDog = (): Promise<Dog> => {
   })
 }
 
-const Dog = () => {
-  const {resource, run} = useResource(fetchDog)
-  const State = getStateComponents(resource)
+const App = () => {
+  const dog = useResource(loadDog, {defer: true})
+  const State = getStateComponents(dog.resource)
   return (
     <React.Fragment>
       <State.Match states={['initial', 'loading']}>
-        <h1>Loading...</h1>
+        <button onClick={dog.run} disabled={isLoading(dog.resource)}>
+          Show me doggo!
+        </button>
+        <State.Loading>
+          <p>Loading...</p>
+        </State.Loading>
       </State.Match>
-      <State.Failure>{error => <h1>Oops! {error.message}</h1>}</State.Failure>
+      <State.Failure render={(error: Error) => <p>Oops! {error.message}</p>} />
       <State.Success>
         {({message}) => (
           <div>
             <h1>Nice</h1>
             <img src={message} alt="dog" />
-            <button onClick={run}>Show me more!</button>
+            <button onClick={dog.run}>Show me more!</button>
           </div>
         )}
       </State.Success>
@@ -70,8 +79,10 @@ const {cancel, reset, resource, run} = useResource<Params, Data, Error>(
 
 > `(params: Params, config?: Config) => Promise<Data>`
 
-Function that return a promise and may fail with `Error` type.
-Accepts optional second parameter of type `Config`.
+Function that returns a promise and may fail with `Error` type (Error type that
+provided is `useResource` type parameters). Accepts optional second parameter of
+type `Config`. `Config` is `{ signal: AbortController.signal }` that you can
+pass into your fetch to enable cancellation.
 
 #### `props`
 
@@ -105,7 +116,7 @@ provided `load` function will be executed only when resource in `chain` is in
 success.
 
 ```tsx
-import {useResource} from '@throned/react-resource-ts'
+import {useResource, Success} from '@throned/react-resource-ts'
 import {map} from '@throned/resource-ts'
 
 type UserMovie = {movieId: string}
@@ -114,13 +125,13 @@ const getUserMovie = () => Promise.resolve({movieId: '1234'})
 const getMovie = (id: string) => Promise.resolve({title: 'The Departed'})
 
 const Component = () => {
-  const user = useResource(getUser)
+  const user = useResource(getUserMovie)
   const movie = useResource(getMovie, {
     dependencies: [user.resource],
     chain: map(({movieId}: UserMovie) => movieId)(user.resource),
   })
   return (
-    <div>{movie.resource.tag === 'success' && movie.resource.value.title}</div>
+    <Success of={movie.resource}>{movie => <h1>{movie.title}</h1>}</Success>
   )
 }
 ```
@@ -158,7 +169,8 @@ Callback that is called when `load` resolves.
 > `Params`
 
 These params will be provided as a first argument of `load` function. You can
-overwrite them when calling `run` function by passing new params to it.
+overwrite them when calling `run` function by passing new params to it. Will be
+ignored by automatic `load` execution if `chain` is provided.
 
 ##### `skipLoadingFor`
 
@@ -175,8 +187,8 @@ immediatly after executing `load` function.
 > `() => void`
 
 Cancels last running `load` function by calling `abort()` on Abort Controller
-signal passed within `Config`. Be aware will work only if you handle signal
-manually in your `load`, e.g. passing it into your `fetch` call.
+signal passed within `Config`. Be aware that it will work only if you handle
+signal manually in your `load`, e.g. passing it into your `fetch` call.
 
 ##### `reset`
 
@@ -188,29 +200,30 @@ Cancles last running `load` function and sets resource into `initial` state.
 
 > `Resource<Data, Error>`
 
-Holds the state of `load` execution.
+Holds the state of `load` execution. To see what you can do with resource check
+[@throned/resource-ts](https://github.com/dmytro-ulianov/throned-resource-ts)
 
 ##### `run`
 
-> `(params?: Params) => Promise<Resource<Data, Error>>`
+> `(runParams?: Params = props.params) => Promise<Resource<Data, Error>>`
 
-Call `run` to execute `load` manually. By default cancelc previous `load`
+Call `run` to execute `load` manually. By default it cancels previous `load`
 and uses `params` passed into `props`. You can disable auto-cancelling by
 passing `cancellable: false` into `props` and you can overwrite default `params`
-by providing new `params` for `run` function.
+by providing `runParams`.
 
 ```tsx
 const {run} = useResource(load, {params: 42})
-run() // call load with 42
-run(100) // call laod with 100
+run() // load(42)
+run(100) // load(100)
 ```
 
 ### `bindError`
 
-> `<BindedError>() => useResource`
+> `<BindedError>() => useResource<Params, Data, Error = BindedError>`
 
-Binds the `Error` type of `useResource`. Is handy for cases where you want to
-infer Params and Data from `load` function, but want to provide `Error`
+Binds the `Error` type of `useResource`. It's handy in cases where you want to
+infer `Params` and `Data` from `load` function, but want to provide `Error` type
 explicitly.
 
 ```tsx
@@ -237,7 +250,7 @@ function.
 
 ### `createResourceWithError`
 
-> `<BindedError>() => (load: Load<Params, Data>) => (props: UseResourceProps) => useResource`
+> `<BindedError>() => (load: Load<Params, Data>) => (props: UseResourceProps) => useResource<Params, Data, Error = BindedError>`
 
 Binds error and load function. Use it for creating reusable hook with the same `load`
 function and explicit `Error` type.
@@ -250,13 +263,12 @@ You can provide `of` prop explicitly for each component.
 
 ```tsx
 const user = useResource(loadUser)
-const State = getStateComponents(user.resource)
-return <div>
-  <State.Match of={user.resource} states={['initial', 'loading']}>
+<div>
+  <Match of={user.resource} states={['initial', 'loading']}>
     <p>Not ready yet</p>
-  </State.Match>
-  <State.Failure of={user.resource}>{error => /* */}</State.Failure>
-  <State.Success of={user.resource}>{user => /* */}</State.Success>
+  </Match>
+  <Failure of={user.resource}>{error => /* */}</Failure>
+  <Success of={user.resource}>{user => /* */}</Success>
 </div>
 ```
 
@@ -265,7 +277,7 @@ But recommended way is to use `getStateComponents` to bind `of` prop.
 ```tsx
 const user = useResource(loadUser)
 const State = getStateComponents(user.resource)
-return <div>
+<div>
   <State.Match states={['initial', 'loading']}>
     <p>Not ready yet</p>
   </State.Match>
@@ -273,6 +285,10 @@ return <div>
   <State.Success>{user => /* */}</State.Success>
 </div>
 ```
+
+All components accepts `render` props and `children` (valid jsx or render
+function). If you provide both `children` and `render` function - `render` will
+take precedence.
 
 #### `Initial`
 
@@ -330,3 +346,7 @@ type MatchProps<D, E> = {
 > `(of: Resource<D, E>) => { Initial, Loading, Success, Failure, Match }`
 
 Returns state components with binded `of` prop.
+
+## Guides
+
+Todo.
