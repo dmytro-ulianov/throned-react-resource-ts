@@ -16,6 +16,7 @@
     "lint": "tsdx lint",
     "prepare": "tsdx build",
     "prettier": "npx prettier --config .prettierrc.json --write \"src/**/*.{ts,tsx}\"",
+    "release": "np",
     "start": "tsdx watch",
     "storybook": "start-storybook -p 6006",
     "test:watch": "tsdx test --watchAll",
@@ -67,5 +68,9 @@
   ],
   "publishConfig": {
     "registry": "https://registry.npmjs.org"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dmytro-ulianov/throned-react-resource-ts"
   }
 }
