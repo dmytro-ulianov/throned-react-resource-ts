@@ -1,0 +1,71 @@
+{
+  "version": "0.0.0",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "typings": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=10"
+  },
+  "scripts": {
+    "build-storybook": "build-storybook",
+    "build": "tsdx build",
+    "lint": "tsdx lint",
+    "prepare": "tsdx build",
+    "prettier": "npx prettier --config .prettierrc.json --write \"src/**/*.{ts,tsx}\"",
+    "start": "tsdx watch",
+    "storybook": "start-storybook -p 6006",
+    "test:watch": "tsdx test --watchAll",
+    "test": "tsdx test"
+  },
+  "peerDependencies": {
+    "react": ">=16"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "tsdx lint"
+    }
+  },
+  "name": "@throned/react-resource-ts",
+  "author": "dmytro-ulianov",
+  "module": "dist/react-resource-ts.esm.js",
+  "devDependencies": {
+    "@babel/core": "7.9.0",
+    "@storybook/addon-actions": "5.3.18",
+    "@storybook/addon-docs": "5.3.18",
+    "@storybook/addon-info": "5.3.18",
+    "@storybook/addon-links": "5.3.18",
+    "@storybook/addons": "5.3.18",
+    "@storybook/react": "5.3.18",
+    "@testing-library/react": "10.0.2",
+    "@types/react": "16.9.34",
+    "@types/react-dom": "16.9.6",
+    "babel-loader": "8.1.0",
+    "husky": "4.2.5",
+    "mutationobserver-shim": "0.3.5",
+    "react": "16.13.1",
+    "react-docgen-typescript-loader": "3.7.2",
+    "react-dom": "16.13.1",
+    "react-is": "16.13.1",
+    "ts-loader": "6.2.2",
+    "tsdx": "0.13.2",
+    "tslib": "1.11.1",
+    "typescript": "3.8.3"
+  },
+  "dependencies": {
+    "@throned/resource-ts": "0.1.2"
+  },
+  "keywords": [
+    "react",
+    "remote-data",
+    "resource",
+    "state",
+    "typescript"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  }
+}
